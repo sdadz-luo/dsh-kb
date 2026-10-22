@@ -1,0 +1,20 @@
+# dsh-kb bundle layer: register the knowledge-base plugin into the host plane.
+#
+# This layer is applied by the profile loader because package.json declares
+# `dsh.bundle.patch`, so `dsh plugin --profile <name> add dsh-kb` activates the
+# plugin automatically.
+#
+# The row carries no config on purpose: the vault root is machine-specific and
+# belongs in the target profile's own cordis.patch.yml as an id-targeted
+# override, e.g.
+#
+#   - id: dsh-kb
+#     config:
+#       vaultRoot: 'D:\knowledge_base\knowledge_base'
+#       pythonPath: 'D:\Anaconda\python.exe'
+#       hideMcpWriteTools: true
+#
+# With an empty `vaultRoot` the plugin loads but stays inert (one warning).
+- insert:
+    - id: dsh-kb
+      name: dsh-kb

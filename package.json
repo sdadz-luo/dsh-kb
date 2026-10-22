@@ -1,0 +1,58 @@
+{
+  "name": "dsh-kb",
+  "version": "0.1.0",
+  "description": "DSH knowledge-base plugin: inject a live KB index, guard writes behind the vault contract, hide MCP write tools, and expose /kb commands and kb_status / kb_check tools.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "knowledge-base",
+    "obsidian",
+    "basic-memory",
+    "guard"
+  ],
+  "license": "MIT",
+  "author": "sdadz-luo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sdadz-luo/dsh-kb.git"
+  },
+  "homepage": "https://github.com/sdadz-luo/dsh-kb#readme",
+  "bugs": {
+    "url": "https://github.com/sdadz-luo/dsh-kb/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**/*.js",
+    "cordis.patch.yml",
+    "README.md",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-home-paths": ">=0.1.5-rc.2 <0.3.0-0",
+    "@deepseek-ai/dsh-llm": ">=0.1.5-rc.2 <0.3.0-0",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  }
+}
