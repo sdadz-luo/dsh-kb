@@ -67,6 +67,12 @@ test("git subcommands that rewrite the working tree count as vault writes", () =
 	assert.equal(analyze("git -C D:\\kb\\vault rm 知识\\a.md", "C:\\work").writesVault, true);
 });
 
+test("quoted -C values do not swallow the git subcommand", () => {
+	assert.equal(analyze("git -C 'D:\\kb\\vault' clean -fdn", "C:\\work").writesVault, true);
+	assert.equal(analyze('git -C "D:\\kb\\vault" checkout -- .', "C:\\work").writesVault, true);
+	assert.equal(analyze("git -C 'D:\\kb\\vault' stash list", "C:\\work").writesVault, false);
+});
+
 test("read-only git commands stay allowed", () => {
 	assert.equal(analyze("git -C D:\\kb\\vault status", "C:\\work").writesVault, false);
 	assert.equal(analyze("git -C D:\\kb\\vault log -3", "C:\\work").writesVault, false);

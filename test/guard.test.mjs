@@ -125,3 +125,43 @@ test("relative shell workdirs are resolved against the session directory", () =>
 	});
 	assert.equal(denied.action, "deny");
 });
+
+test("every candidate session directory is checked (stale header cwd after a working-directory change)", () => {
+	const denied = decideGuard({
+		...base,
+		toolName: "write",
+		args: { file_path: "知识\\a.md" },
+		hasMarker: false,
+		directories: ["D:\\project\\demo", "D:\\kb\\vault"]
+	});
+	assert.equal(denied.action, "deny", "the newer working-directory projection must also be considered");
+
+	const allowed = decideGuard({
+		...base,
+		toolName: "write",
+		args: { file_path: "知识\\a.md" },
+		hasMarker: false,
+		directories: ["D:\\project\\demo", "C:\\work"]
+	});
+	assert.equal(allowed.action, "allow");
+
+	const draftOnly = decideGuard({
+		...base,
+		toolName: "write",
+		args: { file_path: "笔记\\a.md" },
+		hasMarker: false,
+		directories: ["D:\\project\\demo", "D:\\kb\\vault"]
+	});
+	assert.equal(draftOnly.action, "allow", "a draft target stays exempt under every candidate");
+});
+
+test("shell calls check every candidate session directory", () => {
+	const denied = decideGuard({
+		...base,
+		toolName: "pwsh",
+		args: { command: "echo x > a.md" },
+		hasMarker: false,
+		directories: ["D:\\project\\demo", "D:\\kb\\vault"]
+	});
+	assert.equal(denied.action, "deny");
+});

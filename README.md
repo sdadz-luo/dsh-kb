@@ -124,10 +124,11 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 3. **只读知识库**：插件不替用户写库；写库路径、模板、MOC 登记仍由知识库自己的契约与流程约束。
 4. **零运行时依赖**：`lib/` 只用 Node 内置模块 + DSH 的 `dsh-llm` / `dsh-home-paths` / `schemastery`，不引入第三方包。
 5. **内容不变不重复注入**：索引按渲染结果做 sha1 去重，只增不改前缀，不破坏 KV cache 复用。
+6. **相对路径按全部候选会话目录检查**：会话的头字段 `cwd` 在 `working_directory` 切换后不会更新，所以相对路径会分别对「头字段 cwd / `workingDirectory` 投影 / 进程目录」解析，**任一**落入正式目录即拒绝；判不准时偏向拦截（读一次契约即可恢复）。
 
 ## 已知限制
 
-- **shell 识别是启发式**：认明确的写盘动词（`Set-Content`、`Copy-Item`、`rm`、`robocopy`、`xcopy` 等）、真正写文件的重定向，以及会改写工作树的 `git` 子命令（`checkout/restore/reset/clean/rm/mv/revert/cherry-pick/am/switch/apply/stash`，`git apply --check` 与 `stash list|show` 除外）。引号内字面量、`2>&1`、`/dev/null`、`NUL` 不算写；先 `cd` 进库再写相对路径这类无法可靠抽取落点的形态会**漏判**。
+- **shell 识别是启发式**：认明确的写盘动词（`Set-Content`、`Copy-Item`、`rm`、`robocopy`、`xcopy` 等）、真正写文件的重定向，以及会改写工作树的 `git` 子命令（`checkout/restore/reset/clean/rm/mv/revert/cherry-pick/am/switch/apply/stash`，`git apply --check` 与 `stash list|show` 除外；`git -C '<路径>'` 这种带引号写法也能识别）。引号内字面量、`2>&1`、`/dev/null`、`NUL` 不算写；先 `cd` 进库再写相对路径这类无法可靠抽取落点的形态会**漏判**。
 - **守卫是减速带，不是沙箱**：解释器内写盘（`python -c "open(...).write()"`、`node -e ...`）原理上无法通过命令行识别，必被放行。真正的边界是知识库自己的契约与提交质检。
 - **只认 `read` 工具读契约**：`pwsh cat CLAUDE.md` 不触发标记（避免做 shell 语法分析）。
 - **索引是概览**：不含笔记正文；查库仍应走知识库自己的检索协议（本插件只给指针）。
@@ -137,7 +138,7 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 ## 开发
 
 ```bash
-node --test          # 55 个单测：路径 / shell 启发式（含 git、robocopy）/ 守卫决策（含相对路径）/ 配置校验 / 渲染预算 / 扫描 / check.py 解析 / 标记 TTL
+node --test          # 58 个单测：路径 / shell 启发式（含 git、robocopy）/ 守卫决策（相对路径 + 多候选目录）/ 配置校验 / 渲染预算 / 扫描 / check.py 解析 / 标记 TTL
 ```
 
 `lib/` 里除 `index.js` 外都是纯逻辑模块（只依赖 `node:*`），可以不启动 DSH 直接单测。对真实 vault 冒烟：
