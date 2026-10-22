@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.1.1 — 2026-10-22
+
+代码审查后的修复版。修掉三个真实缺陷，并把守卫的覆盖率与可观测性补上。
+
+### 修复
+
+- **相对路径绕过**：守卫对 `write` / `edit` 只用原值做包含判断，而 DSH 会把相对 `file_path` 解析到会话工作目录——会话在库内时写 `知识/a.md` 可绕过拦截。现在先按 `session.header.cwd` 解析再判定（shell 的相对 `workdir` 同理）。
+- **`draftDir: "."` 静默失效**：配置校验只拦 `..` 与绝对路径，`.` 会让 `join(vault, ".")` 等于库根，整库变成豁免区。现在 `.` / 空段 / 结尾斜杠 / 绝对路径一律拒绝（新增 `lib/config.js`）。
+- **标记 TTL 不生效**：TTL 只在写标记时清扫，读取不校验，30 天前的标记照样放行。现在 `has()` 读取时 stat 判过期并删除，7 天 TTL 名副其实。
+
+### 改进
+
+- **shell 覆盖**：新增会改写工作树的 `git` 子命令（`checkout/restore/reset/clean/rm/mv/revert/cherry-pick/am/switch/apply/stash`，`apply --check` 与 `stash list|show` 除外）与 `robocopy` / `xcopy`；解释器内写盘（`python -c`、`node -e`）确认为不可覆盖边界，写入文档。
+- **注册隔离**：五个接缝逐个 try/catch + `logger.error`，一个失败不连坐其余；注册结果通过 `/kb status` 的能力自检可见。
+- **MCP 隐藏重试有上限**：失败最多重试 3 次并只记两条日志，不再每步刷屏。
+- **截断块闭合**：超字节预算截断时补 `</kb-context>`，注入块始终闭合。
+- **扫描告警位置**：从「用法」段内挪到独立段落；扫描器文件读取改为 8 并发上限。
+- **`markDirty` 解耦**：不再依赖 `injectContext`，只用工具/守卫模式时索引缓存也能被库内活动刷新。
+- **`/kb forget`**：清除本会话已读标记，`markers.forget()` 不再是死代码。
+- 测试从 39 个增至 55 个，覆盖上述全部回归。
+
 ## 0.1.0 — 2026-10-22
 
 首个版本。

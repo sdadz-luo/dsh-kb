@@ -10,7 +10,7 @@
 |---|---|
 | **索引注入** | 每个 step 注入 `<kb-context>`：设备档案、知识域篇数与子目录分布、经验/模块计数、待整理草稿、最近提交与未提交数。实时扫描、**内容变化才重发**，不会每步刷屏 |
 | **写库守卫** | `ctx.tools.guard()` 同步硬拦截：本会话没读过库根契约时，`write` / `edit` / shell 写正式目录一律拒绝，错误里给出可照抄的 `read` 指令 |
-| **已读标记** | 成功 `read` 契约后本会话放行；标记落 `$DSH_HOME/kb-contract/`，7 天 TTL，DSH 重启仍有效 |
+| **已读标记** | 成功 `read` 契约后本会话放行；标记落 `$DSH_HOME/kb-contract/`，7 天 TTL（**读取时强制校验过期**），DSH 重启仍有效；`/kb forget` 可手动清除 |
 | **草稿豁免** | `笔记/` 等草稿区免读契约（随手记不该先付一遍规则成本） |
 | **`/kb` 命令** | `status` / `check` / `refresh` / `contract`，UI 直出、不进模型消息 |
 | **模型工具** | `kb_status`（库现状，省多次 Read/Glob）、`kb_check`（跑知识库自己的 `check.py` 并结构化输出） |
@@ -103,16 +103,17 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 | `refreshIntervalMs` | `15000` | 扫描缓存窗口；库内文件读写事件会提前失效 |
 | `checkTimeoutMs` | `60000` | `check.py` 超时 |
 
-所有 `*File` / `draftDir` 都是**库内相对路径**，绝对路径或含 `..` 会被拒绝（防止配置越出库根）。
+所有 `*File` / `draftDir` 都是**库内相对路径**，校验规则：绝对路径、`..`、`.` 段、空段（含结尾斜杠）一律拒绝——`draftDir: "."` 这类写法会让整个库变成豁免区，属于必须挡住的配置陷阱。
 
 ## 命令与工具
 
 | 入口 | 用途 |
 |---|---|
-| `/kb status` | 库现状（设备、域、篇数、草稿、最近提交、本会话是否已读契约） |
+| `/kb status` | 库现状（设备、域、篇数、草稿、最近提交、本会话是否已读契约、**能力自检**：命令/工具/MCP 隐藏是否生效） |
 | `/kb check` | 跑 `check.py`，给 ❌/⚠️/📋 计数与明细 |
 | `/kb refresh` | 清空索引缓存，下一步重扫重发 |
 | `/kb contract` | 契约路径、草稿区、本会话已读状态 |
+| `/kb forget` | 清除本会话的已读标记，下次写库重新要求读契约 |
 | 工具 `kb_status` | 同 `/kb status` 的结构化文本，模型可直接调用 |
 | 工具 `kb_check` | 同 `/kb check`；`strict: true` 时警告也算失败（与 pre-commit 一致） |
 
@@ -126,7 +127,8 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 
 ## 已知限制
 
-- **shell 识别是启发式**：只认明确的写盘动词（`Set-Content`、`Copy-Item`、`rm` 等）与真正写文件的重定向；引号内字面量、`2>&1`、`/dev/null`、`NUL` 不算写。先 `cd` 进库再写相对路径这类无法可靠抽取落点的形态会**漏判**。
+- **shell 识别是启发式**：认明确的写盘动词（`Set-Content`、`Copy-Item`、`rm`、`robocopy`、`xcopy` 等）、真正写文件的重定向，以及会改写工作树的 `git` 子命令（`checkout/restore/reset/clean/rm/mv/revert/cherry-pick/am/switch/apply/stash`，`git apply --check` 与 `stash list|show` 除外）。引号内字面量、`2>&1`、`/dev/null`、`NUL` 不算写；先 `cd` 进库再写相对路径这类无法可靠抽取落点的形态会**漏判**。
+- **守卫是减速带，不是沙箱**：解释器内写盘（`python -c "open(...).write()"`、`node -e ...`）原理上无法通过命令行识别，必被放行。真正的边界是知识库自己的契约与提交质检。
 - **只认 `read` 工具读契约**：`pwsh cat CLAUDE.md` 不触发标记（避免做 shell 语法分析）。
 - **索引是概览**：不含笔记正文；查库仍应走知识库自己的检索协议（本插件只给指针）。
 - **子 agent 不注入索引**，但守卫对子 agent 同样生效。
@@ -135,7 +137,7 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 ## 开发
 
 ```bash
-node --test          # 39 个单测：路径 / shell 启发式 / 守卫决策 / 渲染预算 / 扫描 / check.py 解析 / 标记
+node --test          # 55 个单测：路径 / shell 启发式（含 git、robocopy）/ 守卫决策（含相对路径）/ 配置校验 / 渲染预算 / 扫描 / check.py 解析 / 标记 TTL
 ```
 
 `lib/` 里除 `index.js` 外都是纯逻辑模块（只依赖 `node:*`），可以不启动 DSH 直接单测。对真实 vault 冒烟：

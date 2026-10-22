@@ -64,6 +64,20 @@ test("scan errors surface inside the block", () => {
 	assert.match(text, /索引告警：git: boom/);
 });
 
+test("scan warnings get their own paragraph before the usage section", () => {
+	const text = buildContext(model({ errors: ["git: boom"] }));
+	const warning = text.indexOf("索引告警");
+	const usage = text.indexOf("## 用法");
+	assert.ok(warning > 0 && warning < usage, "the warning must precede the usage heading");
+	assert.equal(text.slice(warning, usage).includes("查库"), false, "the warning must not sit inside the usage list");
+});
+
+test("a truncated render still closes the block", () => {
+	const rendered = renderContext(model(), { maxBytes: 320 });
+	assert.equal(rendered.truncated, true);
+	assert.ok(rendered.text.trimEnd().endsWith("</kb-context>"), "even the degraded block must stay well-formed");
+});
+
 test("truncateToBytes never exceeds the budget", () => {
 	const long = "aaaa\n".repeat(20);
 	const tight = truncateToBytes(long, 14);

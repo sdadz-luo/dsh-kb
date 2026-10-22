@@ -1,6 +1,6 @@
 {
   "name": "dsh-kb",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH knowledge-base plugin: inject a live KB index, guard writes behind the vault contract, hide MCP write tools, and expose /kb commands and kb_status / kb_check tools.",
   "keywords": [
     "dsh",

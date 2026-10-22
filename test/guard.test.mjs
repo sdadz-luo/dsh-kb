@@ -74,3 +74,54 @@ test("shell call without an explicit workdir uses the session directory", () => 
 	});
 	assert.equal(denied.action, "deny");
 });
+
+test("relative file paths are resolved against the session directory", () => {
+	const inVault = decideGuard({
+		...base,
+		toolName: "write",
+		args: { file_path: "知识\\a.md" },
+		hasMarker: false,
+		defaultDirectory: "D:\\kb\\vault"
+	});
+	assert.equal(inVault.action, "deny", "a relative path from a session inside the vault writes the vault");
+
+	const outside = decideGuard({
+		...base,
+		toolName: "write",
+		args: { file_path: "知识\\a.md" },
+		hasMarker: false,
+		defaultDirectory: "C:\\project"
+	});
+	assert.equal(outside.action, "allow", "the same relative path from outside the vault is not a vault write");
+
+	const draft = decideGuard({
+		...base,
+		toolName: "edit",
+		args: { file_path: "笔记\\draft.md" },
+		hasMarker: false,
+		defaultDirectory: "D:\\kb\\vault"
+	});
+	assert.equal(draft.action, "allow", "the draft exemption also applies to relative paths");
+});
+
+test("absolute file paths still ignore the session directory", () => {
+	const denied = decideGuard({
+		...base,
+		toolName: "write",
+		args: { file_path: "D:\\kb\\vault\\经验\\a.md" },
+		hasMarker: false,
+		defaultDirectory: "C:\\project"
+	});
+	assert.equal(denied.action, "deny");
+});
+
+test("relative shell workdirs are resolved against the session directory", () => {
+	const denied = decideGuard({
+		...base,
+		toolName: "pwsh",
+		args: { command: "echo x > a.md", workdir: "模块" },
+		hasMarker: false,
+		defaultDirectory: "D:\\kb\\vault"
+	});
+	assert.equal(denied.action, "deny");
+});

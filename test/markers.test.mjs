@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync, utimesSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,4 +38,21 @@ test("a marker survives a new store instance (app restart)", () => {
 test("forget drops the marker", () => {
 	markers.forget("session-a");
 	assert.equal(markers.has("session-a"), false);
+});
+
+test("an expired marker stops authorizing writes", () => {
+	markers.mark("session-old", "D:\\kb\\CLAUDE.md");
+	const file = markers.fileFor("session-old");
+	const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+	utimesSync(file, monthAgo, monthAgo);
+
+	assert.equal(markers.has("session-old"), false, "TTL is enforced on read, not only on sweep");
+	assert.equal(existsSync(file), false, "the expired marker file is removed");
+});
+
+test("a marker inside the TTL keeps authorizing writes", () => {
+	markers.mark("session-fresh", "D:\\kb\\CLAUDE.md");
+	const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+	utimesSync(markers.fileFor("session-fresh"), anHourAgo, anHourAgo);
+	assert.equal(markers.has("session-fresh"), true);
 });

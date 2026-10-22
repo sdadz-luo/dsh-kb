@@ -59,3 +59,23 @@ test("relative write from inside the vault counts, absolute writes elsewhere do 
 	const absolute = analyze("echo x > C:\\work\\a.md", "D:\\kb\\vault\\知识");
 	assert.equal(absolute.writesVault, false);
 });
+
+test("git subcommands that rewrite the working tree count as vault writes", () => {
+	assert.equal(analyze("git -C D:\\kb\\vault checkout -- .", "C:\\work").writesVault, true);
+	assert.equal(analyze("git -C D:\\kb\\vault reset --hard HEAD~1", "C:\\work").writesVault, true);
+	assert.equal(analyze("git -C D:\\kb\\vault clean -fd", "C:\\work").writesVault, true);
+	assert.equal(analyze("git -C D:\\kb\\vault rm 知识\\a.md", "C:\\work").writesVault, true);
+});
+
+test("read-only git commands stay allowed", () => {
+	assert.equal(analyze("git -C D:\\kb\\vault status", "C:\\work").writesVault, false);
+	assert.equal(analyze("git -C D:\\kb\\vault log -3", "C:\\work").writesVault, false);
+	assert.equal(analyze("git -C D:\\kb\\vault stash list", "C:\\work").writesVault, false);
+	assert.equal(analyze("git -C D:\\kb\\vault diff --stat", "C:\\work").writesVault, false);
+	assert.equal(analyze("git apply --check patch.diff", "D:\\kb\\vault").writesVault, false);
+});
+
+test("copy utilities are recognized as writes", () => {
+	assert.equal(analyze("robocopy C:\\work D:\\kb\\vault\\知识 a.md", "C:\\work").writesVault, true);
+	assert.equal(analyze("xcopy C:\\work\\a.md D:\\kb\\vault\\经验\\ /Y", "C:\\work").writesVault, true);
+});
