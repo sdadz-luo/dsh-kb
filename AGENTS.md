@@ -58,6 +58,24 @@ node -e "import('./lib/scan.js').then(async m => { const x = await m.scanVault({
    - `/kb status`（含能力自检）、`/kb check`、`/kb refresh`、`/kb forget` 可用；`kb_status` / `kb_check` 工具可被模型调用。
 4. 卸载：`dsh plugin --profile <profile> remove dsh-kb`。注意失败的 `add` 会把 `dsh.profile.bundles` 里的条目删掉，重装后要确认它回来了。
 
+## 验收记录与活体回归
+
+**0.1.2 已于 2026-10-22 实机验收通过**（DSH Desktop 0.2.1-rc.2 / Windows 11）：单测 58/58；注入、守卫（绝对路径 / 相对路径 / shell / git / robocopy）、草稿豁免、标记 TTL、`/kb` 命令与两个工具全部按预期（明细见 README「验收记录」）。
+
+改守卫或标记逻辑后建议跑一遍"活体回归"。所有探针都用**不产生副作用**的形态（dry-run、不存在的源、过期标记），每步之后清理现场：
+
+1. 重启 DSH（插件 JS 不热重载），确认 `node_modules/dsh-kb/package.json` 的版本已是新的。
+2. **标记 TTL**：把本会话标记改成 30 天前，再让 agent 写一个 `知识/` 下的临时文件 → 应被拒，且标记文件被删除。
+   ```powershell
+   $m = Get-ChildItem "$env:USERPROFILE\.dsh\kb-contract\*.read" | Select-Object -First 1
+   (Get-Item $m).LastWriteTime = (Get-Date).AddDays(-30)
+   ```
+3. **切目录后的相对路径**：让 agent 把会话工作目录切到库根，再写 `知识/zz-rel-test.md` → 应被拒（0.1.1 会放行，是真实发生过的缺陷）。
+4. **shell**：`git -C '<库根>' clean -fdn`（dry-run）与 `robocopy <不存在的源> '<库根>\知识' /E` → 都应被拒；即使漏判也不会写盘。
+5. **草稿豁免**：相对路径写 `笔记/zz-test.md` → 应放行。
+6. **命令/工具**：`/kb status` 的「能力自检」一行应显示 `/kb 命令 已注册`、`kb_status/kb_check 已注册`；`/kb check` 应返回 `扫描 N 个 md`。
+7. **清理**：删除测试文件；重读库根契约以重建标记（或恢复标记时间）；把会话工作目录切回原处；`git status` 应回到测试前的状态。
+
 ## 常见坑
 
 - **没有独立 `dsh` CLI 时**：可用 Electron 应用跑内置 CLI ——
@@ -68,7 +86,7 @@ node -e "import('./lib/scan.js').then(async m => { const x = await m.scanVault({
 - `tools/result` 是**观察**事件（无 `next`），只用来记标记，不要试图改结果。
 - `agent.ctx.tools.restrict()` 只接受**全局**工具名，名字不存在会抛错；先 `ctx.tools.schemas(agent)` 过滤再 deny，失败按上限重试（`HIDDEN_TOOL_RESTRICT_ATTEMPTS`），别每步刷日志。
 - shell 解析要**先按引号切词再判子命令**：`stripQuoted` 之后再 `split(/\s+/)` 会让 `-C '<路径>'` 把后面的子命令当成路径值吞掉（`git -C 'D:\kb\vault' clean -fdn` 因此漏判，0.1.2 修复）。`tokenize()` 保留引号内内容、去掉引号。
-- 守卫的 `defaultDirectory` 取 `session.header.cwd`；拿不到退 `process.cwd()`，此时相对路径会按宿主进程目录解析——已知降级边界。
+- 相对路径按 `state.sessionDirectories(session)` 的三候选解析（头字段 cwd / `workingDirectory` 投影 / 进程目录）；只读头字段会在"切过目录"的会话里漏判（0.1.1 真实缺陷，0.1.2 修复）。
 - 解释器内写盘（`python -c`、`node -e`）无法从命令行识别，必然放行；这是设计边界，不要试图用正则补全，写进文档即可。
 - 测试必须覆盖「相对路径 + 会话在库内」「过期标记」「`.` 配置」这三类回归，它们都是已发生过的真实缺陷。
 - `check.py` 的解释器别写死 `python`：部分 Windows 机器的 `python3` 是 App Execution Alias 空壳，要在配置里显式给 `pythonPath`。

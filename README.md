@@ -126,6 +126,28 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 5. **内容不变不重复注入**：索引按渲染结果做 sha1 去重，只增不改前缀，不破坏 KV cache 复用。
 6. **相对路径按全部候选会话目录检查**：会话的头字段 `cwd` 在 `working_directory` 切换后不会更新，所以相对路径会分别对「头字段 cwd / `workingDirectory` 投影 / 进程目录」解析，**任一**落入正式目录即拒绝；判不准时偏向拦截（读一次契约即可恢复）。
 
+## 验收记录
+
+2026-10-22 在 **DSH Desktop 0.2.1-rc.2**（Windows 11 / Node 26）上对 **0.1.2** 做了单测 + 实机验收：
+
+| 类别 | 检查 | 结果 |
+|---|---|---|
+| 单测 | `node --test`（58 例） | ✅ 0 失败 |
+| 注入 | 会话上下文出现 `<kb-context>`，篇数与库一致 | ✅ |
+| 注入 | 库变更（新建/删除草稿）后自动重发，提交号与未提交数同步 | ✅ |
+| 守卫 | 未读契约写正式目录（绝对路径）被拒，错误里给出 `read` 指令 | ✅ |
+| 守卫 | 读契约后同一写入放行 | ✅ |
+| 守卫 | 草稿区写入始终放行（含相对路径） | ✅ |
+| 守卫 | shell 写正式目录（`Set-Content`、`robocopy`）被拒 | ✅ |
+| 守卫 | 会话切到库根后，相对路径写正式目录被拒 | ✅ |
+| 守卫 | `git -C '<库根>' clean -fdn` 被拒；只读的 `git stash list` 放行 | ✅ |
+| 标记 | 标记改成 30 天前后写库被拒，过期标记文件被删除 | ✅ |
+| 命令 | `/kb status`（能力自检三项正常）、`/kb check` | ✅ |
+| 工具 | `kb_status` / `kb_check` 已注册（由 `/kb status` 的能力自检确认） | ✅ |
+
+> **插件 JS 不会热重载**：升级版本后必须重启 DSH 才生效；`cordis.patch.yml` 的配置是热生效的。
+> 复现这些检查的安全探针与清理步骤见 [AGENTS.md](AGENTS.md#验收记录与活体回归)。
+
 ## 已知限制
 
 - **shell 识别是启发式**：认明确的写盘动词（`Set-Content`、`Copy-Item`、`rm`、`robocopy`、`xcopy` 等）、真正写文件的重定向，以及会改写工作树的 `git` 子命令（`checkout/restore/reset/clean/rm/mv/revert/cherry-pick/am/switch/apply/stash`，`git apply --check` 与 `stash list|show` 除外；`git -C '<路径>'` 这种带引号写法也能识别）。引号内字面量、`2>&1`、`/dev/null`、`NUL` 不算写；先 `cd` 进库再写相对路径这类无法可靠抽取落点的形态会**漏判**。
@@ -141,7 +163,7 @@ Desktop 的 profile 由 Electron 应用托管，应用运行时 `dsh plugin` 会
 node --test          # 58 个单测：路径 / shell 启发式（含 git、robocopy）/ 守卫决策（相对路径 + 多候选目录）/ 配置校验 / 渲染预算 / 扫描 / check.py 解析 / 标记 TTL
 ```
 
-`lib/` 里除 `index.js` 外都是纯逻辑模块（只依赖 `node:*`），可以不启动 DSH 直接单测。对真实 vault 冒烟：
+`lib/` 里除 `index.js` 外都是纯逻辑模块（只依赖 `node:*`），可以不启动 DSH 直接单测。改守卫逻辑后建议按 [AGENTS.md](AGENTS.md#验收记录与活体回归) 的活体回归清单跑一遍。对真实 vault 冒烟：
 
 ```bash
 node -e "import('./lib/scan.js').then(async m => { const x = await m.scanVault({ vaultRoot: process.argv[1], draftDir: '笔记', includeGitInfo: true }); console.log(x.devices.length, x.domains.length, x.experience, x.modules, x.drafts.count, x.git); })" "D:\\knowledge_base\\knowledge_base"
